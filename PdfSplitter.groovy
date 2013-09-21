@@ -38,7 +38,7 @@ private PdfReader createPdf(){
 
 def splitFiles() {
     if(validateInputs()) {
-        PdfReader reader = createPdf()
+ /*       PdfReader reader = createPdf()
         int totalPages = reader.numberOfPages
         Document document = new Document(reader.getPageSizeWithRotation(1))
         document.open()    
@@ -61,6 +61,7 @@ def splitFiles() {
             }
         }
         document.close()
+    */
     }  
 }
 
@@ -96,9 +97,9 @@ Boolean validateInputs() {
         def fromField = map.fromPageField
         def toField = map.toPageField
         def fileName = map.fileNameField
-        
+        def textFieldList = map.values().findAll{it instanceof javax.swing.JTextField }
         if(fromField.text || toField.text || fileName.text) {
-            invalidFileds =map.values().findAll{ it instanceof javax.swing.JTextField && it?.text?.isAllWhitespace()}
+            invalidFileds = textFieldList.findAll{ it?.text?.isAllWhitespace()}
             int fromP = fromField.text?.isNumber() ? fromField.text.toInteger() : 0
             int toP = toField.text?.isNumber() ? toField.text.toInteger() : 0 
             println "Size is : " + invalidFileds.size()
@@ -107,9 +108,10 @@ Boolean validateInputs() {
             }
             invalidFileds*.setBackground(new Color(246, 163, 163))
             valid = invalidFileds.size() < 1 ?: false 
-            map.values().findAll{f -> !f instanceof JProgressBar && f.text  }*.setBackground(Color.white)
+            (textFieldList - invalidFileds )*.setBackground(Color.white)
+            //map.values().findAll{ it instanceof javax.swing.JTextField && !it?.text?.isAllWhitespace()}*.setBackground(Color.white)
         } else{
-             map.values().findAll{f -> !f instanceof JProgressBar }*.setBackground(Color.white)
+             textFieldList.findAll{it instanceof javax.swing.JTextField}*.setBackground(Color.white)
         }
     }
     return valid

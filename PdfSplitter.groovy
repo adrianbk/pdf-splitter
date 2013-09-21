@@ -10,6 +10,8 @@ import com.lowagie.text.pdf.*
 import com.lowagie.text.Document
 import com.lowagie.text.pdf.PdfCopy
 import groovy.transform.Field
+import groovy.beans.Bindable
+
 
 //When a variable is typed its not global - use @Field to make it global to the script
 @Field int numberOfSplits = 5
@@ -36,32 +38,43 @@ private PdfReader createPdf(){
     reader
 }
 
+class FileProgress {
+    @Bindable def current = 0
+}
+
 def splitFiles() {
     if(validateInputs()) {
- /*       PdfReader reader = createPdf()
+ /*      PdfReader reader = createPdf()
         int totalPages = reader.numberOfPages
         Document document = new Document(reader.getPageSizeWithRotation(1))
-        document.open()    
+        document.open() */   
         inputFileds.each{
             if(hasInputs(it)){
                 Integer  fromPage =  it.fromPageField.text.toInteger()
                 Integer  toPage = it.toPageField.text.toInteger()
                 String   outFileName =  it.fileNameField.text
                 def progressBar = it.progressBar
+                def fileProgress = it.fileProgress
 
-                PdfCopy copy = new PdfCopy(document, new FileOutputStream("${outFileName}.pdf"))
-            
+      //          PdfCopy copy = new PdfCopy(document, new FileOutputStream("${outFileName}.pdf"))
                 progressBar.value = 0
                 progressBar.maximum = toPage
-                (fromPage .. toPage).each{ pageNumber-> 
-                    println "Attempting Page: $pageNumber"
-                    copy.addPage(copy.getImportedPage(reader, pageNumber))
-                    progressBar.value = progressBar.value++
+
+                
+                
+                (fromPage .. toPage).each{ pageNumber->
+                    fileProgress.current +=1 
+
+                    println "Attempting Page: $pageNumber. ${Thread.currentThread()}"
+                        sleep(2000)
+        //            copy.addPage(copy.getImportedPage(reader, pageNumber))
+                
+                    
                 }
             }
         }
-        document.close()
-    */
+    //    document.close()
+    
     }  
 }
 
@@ -109,7 +122,6 @@ Boolean validateInputs() {
             invalidFileds*.setBackground(new Color(246, 163, 163))
             valid = invalidFileds.size() < 1 ?: false 
             (textFieldList - invalidFileds )*.setBackground(Color.white)
-            //map.values().findAll{ it instanceof javax.swing.JTextField && !it?.text?.isAllWhitespace()}*.setBackground(Color.white)
         } else{
              textFieldList.findAll{it instanceof javax.swing.JTextField}*.setBackground(Color.white)
         }
@@ -121,7 +133,7 @@ def size = [900, 400]
 swingBuilder.edt {
 	mainFrame = frame(title: 'PDF Splitter', defaultCloseOperation: JFrame.DISPOSE_ON_CLOSE, 
 		size: size, minimumSize: size, maximumSize: size, resizable: false, show: true, locationRelativeTo: null) {
-
+    
     borderLayout()
 
     panel(constraints:BL.NORTH, border: compoundBorder([emptyBorder(10), titledBorder('Select the PDF file to split:')])) {
@@ -131,25 +143,26 @@ swingBuilder.edt {
      }
 
      panel(constraints:BL.CENTER, border: compoundBorder([emptyBorder(10), titledBorder('Specify ouput files:')])) {
-
-        
         (1..numberOfSplits).each{ i ->
             String mapKey = "inputSet$i"
             Map m = [:]
+            FileProgress fp = new FileProgress()
             label(text: "From Page (inclusive): ")
             m."fromPageField" = textField(columns: 5)
             label(text:  "To (inclusive): ")
             m."toPageField" = textField(columns: 5)
             label(text:  "Filename: ")
             m."fileNameField" = textField(columns: 20)
-            m."progressBar" = progressBar() 
+            m."progressBar" = progressBar(value: bind {fp.current} ) 
+            m."fileProgress" = fp 
             inputFileds.add(m)        
         }
      }
 
      panel(constraints:BL.SOUTH, border: compoundBorder([emptyBorder(10), titledBorder('Execute:')])){
+        println "${Thread.currentThread()}"
         button(text: "> Reset", actionPerformed: {e -> this.reset()})
-        button(text: "> Split", actionPerformed: {e -> this.splitFiles()})
+        button(text: "> Split", actionPerformed: {e ->  doLater{this.splitFiles()}})
      }
  }
 }

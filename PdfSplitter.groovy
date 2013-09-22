@@ -1,5 +1,5 @@
-@GrabConfig(systemClassLoader=true) 
-@Grab(group='com.lowagie', module='itext', version='2.1.4')
+@GrabConfig(systemClassLoader = true)
+@Grab(group = 'com.lowagie', module = 'itext', version = '2.1.4')
 
 import javax.swing.*
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -11,7 +11,6 @@ import com.lowagie.text.Document
 import com.lowagie.text.pdf.PdfCopy
 import groovy.transform.Field
 import groovy.beans.Bindable
-
 
 //When a variable is typed its not global - use @Field to make it global to the script
 @Field int numberOfSplits = 5
@@ -25,57 +24,58 @@ class FileProgress {
 }
 
 pdfChooser = new JFileChooser(
-    dialogTitle: "Choose an pdf file",
-    fileSelectionMode: JFileChooser.FILES_ONLY,
-    fileFilter: new FileNameExtensionFilter("PDF Files", "pdf"))
+        dialogTitle: "Choose an pdf file",
+        fileSelectionMode: JFileChooser.FILES_ONLY,
+        fileFilter: new FileNameExtensionFilter("PDF Files", "pdf"))
 
-def selectFile( event = null ) {
+def selectFile(event = null) {
     int result = pdfChooser.showOpenDialog()
-    if( result == JFileChooser.APPROVE_OPTION ) {
+    if (result == JFileChooser.APPROVE_OPTION) {
         pdfFile = pdfChooser.selectedFile
         fileLabel.text = pdfFile
     }
 }
 
-private PdfReader createPdf(){
-    PdfReader reader = new PdfReader(pdfFile.toString())
-    reader
-}
-
-
 def splitFiles() {
-    if(validateInputs()) {
-        resetProgressBars()
- /*      PdfReader reader = createPdf()
-        int totalPages = reader.numberOfPages
-        Document document = new Document(reader.getPageSizeWithRotation(1))
-        document.open() */   
-        inputFileds.each{
-            if(hasInputs(it)){
-                Integer  fromPage =  it.fromPageField.text.toInteger()
-                Integer  toPage = it.toPageField.text.toInteger()
-                String   outFileName =  it.fileNameField.text
-                def progressBar = it.progressBar
-                def fileProgress = it.fileProgress
-                fileProgress.setCurrent(0)
-                progressBar.maximum = toPage
-      //          PdfCopy copy = new PdfCopy(document, new FileOutputStream("${outFileName}.pdf")
-                
-                
-                (fromPage .. toPage).each{ pageNumber->
-                    
-                        sleep(2000)
-        //            copy.addPage(copy.getImportedPage(reader, pageNumber))
-                
-                    fileProgress.setCurrent(1 + fileProgress.current) 
+    Document document
+    try {
+        if (validateInputs()) {
+            resetProgressBars()
+            PdfReader reader = new PdfReader(pdfFile.toString())
+            int totalPages = reader.numberOfPages
+            document = new Document(reader.getPageSizeWithRotation(1))
+            String dirName = new Date().format('ddMMyyyyHHmmss')
+            File dir = new File("${pdfFile.parentFile}${File.separator}${dirName}")
+            dir.mkdir()
+            inputFileds.each {
+                if (hasInputs(it)) {
+                    Integer fromPage = it.fromPageField.text.toInteger()
+                    Integer toPage = it.toPageField.text.toInteger()
+                    String outFileName = it.fileNameField.text
+                    def progressBar = it.progressBar
+                    def fileProgress = it.fileProgress
+                    fileProgress.setCurrent(fromPage)
+                    progressBar.minimum = fromPage
+                    progressBar.maximum = Math.min(toPage, totalPages)
+                    PdfCopy copy = new PdfCopy(document, new FileOutputStream("${dir}${File.separator}${outFileName}.pdf"))
+                    document.open()
+                    (fromPage..Math.min(toPage, totalPages)).each { pageNumber ->
+                        copy.addPage(copy.getImportedPage(reader, pageNumber));
+                        fileProgress.setCurrent(1 + fileProgress.current)
+                    }
                 }
             }
+            document.close()
+            message("Complete: files written to ${dir}")
         }
-    //    document.close()
-       // executeButton.setEnabled(true)
-        message("Complete: files written to ${pdfFile.parentFile}")
-    
-    }  
+    } catch (Exception e) {
+        e.printStackTrace()
+        error("Exception. See system out.")
+    } finally {
+        if (null != document) {
+            document.close();
+        }
+    }
 }
 
 def error(String message) {
@@ -87,23 +87,24 @@ def message(String message) {
 }
 
 def resetProgressBars() {
-    inputFileds.each{map -> 
-        map.values().findAll{it instanceof FileProgress}*.setCurrent(0)
+    inputFileds.each {map ->
+        map.values().findAll {it instanceof FileProgress}*.setCurrent(0)
     }
 }
 
 def reset() {
+    resetProgressBars()
     pdfFile = null;
     fileLabel.text = ""
-    inputFileds.each{map -> map.findAll { it.value instanceof javax.swing.JTextField }.each { key, value -> 
-        value.text = "" 
-        value.setBackground(Color.white)
+    inputFileds.each {map ->
+        map.findAll { it.value instanceof javax.swing.JTextField }.each { key, value ->
+            value.text = ""
+            value.setBackground(Color.white)
         }
     }
-    inputFileds.findAll {f -> f.value instanceof javax.swing.JTextField}.each{println it}
 }
 
-def hasInputs(m){
+def hasInputs(m) {
     def fromField = m.fromPageField
     def toField = m.toPageField
     def fileName = m.fileNameField
@@ -112,71 +113,67 @@ def hasInputs(m){
 
 Boolean validateInputs() {
     boolean valid = false
-    if(null == pdfFile || !pdfFile.exists()){
+    if (null == pdfFile || !pdfFile.exists()) {
         error("Invalid PDF file!")
         return false
     }
-    inputFileds.each{map -> 
+    inputFileds.each {map ->
         def fromField = map.fromPageField
         def toField = map.toPageField
         def fileName = map.fileNameField
-        def textFieldList = map.values().findAll{it instanceof javax.swing.JTextField }
-        if(fromField.text || toField.text || fileName.text) {
-            invalidFileds = textFieldList.findAll{ it?.text?.isAllWhitespace()}
+        def textFieldList = map.values().findAll {it instanceof javax.swing.JTextField }
+        if (fromField.text || toField.text || fileName.text) {
+            invalidFileds = textFieldList.findAll { it?.text?.isAllWhitespace()}
             int fromP = fromField.text?.isNumber() ? fromField.text.toInteger() : 0
-            int toP = toField.text?.isNumber() ? toField.text.toInteger() : 0 
-            if(toP < fromP || toP == 0 || fromP == 0){
+            int toP = toField.text?.isNumber() ? toField.text.toInteger() : 0
+            if (toP < fromP || toP == 0 || fromP == 0) {
                 invalidFileds << toField << fromField
             }
             invalidFileds*.setBackground(new Color(246, 163, 163))
-            valid = invalidFileds.size() < 1 ?: false 
-            (textFieldList - invalidFileds )*.setBackground(Color.white)
-        } else{
-             textFieldList.findAll{it instanceof javax.swing.JTextField}*.setBackground(Color.white)
+            valid = invalidFileds.size() < 1 ?: false
+            (textFieldList - invalidFileds)*.setBackground(Color.white)
+        } else {
+            textFieldList.findAll {it instanceof javax.swing.JTextField}*.setBackground(Color.white)
         }
     }
     return valid
-}   
+}
 
 //UI with swingbuilder
 def size = [900, 400]
 swingBuilder.edt {
-	mainFrame = frame(title: 'PDF Splitter', defaultCloseOperation: JFrame.EXIT_ON_CLOSE, 
-		size: size, minimumSize: size, maximumSize: size, resizable: false, show: true, locationRelativeTo: null) {
-    
-    borderLayout()
+    mainFrame = frame(title: 'PDF Splitter', defaultCloseOperation: JFrame.EXIT_ON_CLOSE,
+            size: size, minimumSize: size, maximumSize: size, resizable: false, show: true, locationRelativeTo: null) {
+        borderLayout()
 
-    panel(constraints:BL.NORTH, border: compoundBorder([emptyBorder(10), titledBorder('Select the PDF file to split:')])) {
-         label(text:"PDF File: ")
-         fileLabel = textField(text: 'Select one..', editable: false, columns: 50)
-         button(text:'Select file', actionPerformed: {e -> this.selectFile(e)})
-     }
-
-     panel(constraints:BL.CENTER, border: compoundBorder([emptyBorder(10), titledBorder('Specify ouput files:')])) {
-        (1..numberOfSplits).each{ i ->
-            String mapKey = "inputSet$i"
-            Map m = [:]
-            FileProgress fp = new FileProgress()
-            label(text: "From Page (inclusive): ")
-            m."fromPageField" = textField(columns: 5)
-            label(text:  "To (inclusive): ")
-            m."toPageField" = textField(columns: 5)
-            label(text:  "Filename: ")
-            m."fileNameField" = textField(columns: 20)
-            //Bind to fileProgress.current so progress bar is updated during execution
-            m."progressBar" = progressBar(value: bind {fp.current} ) 
-            m."fileProgress" = fp 
-            inputFileds.add(m)        
+        panel(constraints: BL.NORTH, border: compoundBorder([emptyBorder(10), titledBorder('Select the PDF file to split:')])) {
+            label(text: "PDF File: ")
+            fileLabel = textField(text: 'Select one..', editable: false, columns: 50)
+            button(text: 'Select file', actionPerformed: {e -> this.selectFile(e)})
         }
-     }
 
-     panel(constraints:BL.SOUTH, border: compoundBorder([emptyBorder(10), titledBorder('Execute:')])){
-        button(text: "> Reset", actionPerformed: {e -> this.reset()})
-        //doOutside runs outside of the edt thread
-        button(text: "> Split", actionPerformed: {e ->  doOutside{this.splitFiles()}})
-     }
- }
+        panel(constraints: BL.CENTER, border: compoundBorder([emptyBorder(10), titledBorder('Specify ouput files:')])) {
+            (1..numberOfSplits).each { i ->
+                String mapKey = "inputSet$i"
+                Map m = [:]
+                FileProgress fp = new FileProgress()
+                label(text: "From Page (inclusive): ")
+                m."fromPageField" = textField(columns: 5)
+                label(text: "To (inclusive): ")
+                m."toPageField" = textField(columns: 5)
+                label(text: "Filename: ")
+                m."fileNameField" = textField(columns: 20)
+                //Bind to fileProgress.current so progress bar is updated during execution
+                m."progressBar" = progressBar(value: bind {fp.current})
+                m."fileProgress" = fp
+                inputFileds.add(m)
+            }
+        }
+
+        panel(constraints: BL.SOUTH, border: compoundBorder([emptyBorder(10), titledBorder('Execute:')])) {
+            button(text: "> Reset", actionPerformed: {e -> this.reset()})
+            //doOutside runs outside of the edt thread
+            button(text: "> Split", actionPerformed: {e ->  doOutside {this.splitFiles()}})
+        }
+    }
 }
-
-
-

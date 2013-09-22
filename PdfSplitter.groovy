@@ -19,6 +19,10 @@ import groovy.beans.Bindable
 @Field List inputFileds = []
 @Field swingBuilder = new SwingBuilder()
 
+//Simple class with a bindable to show progress on brogress bars
+class FileProgress {
+    @Bindable def current = 0
+}
 
 pdfChooser = new JFileChooser(
     dialogTitle: "Choose an pdf file",
@@ -38,12 +42,10 @@ private PdfReader createPdf(){
     reader
 }
 
-class FileProgress {
-    @Bindable def current = 0
-}
 
 def splitFiles() {
     if(validateInputs()) {
+        resetProgressBars()
  /*      PdfReader reader = createPdf()
         int totalPages = reader.numberOfPages
         Document document = new Document(reader.getPageSizeWithRotation(1))
@@ -55,31 +57,39 @@ def splitFiles() {
                 String   outFileName =  it.fileNameField.text
                 def progressBar = it.progressBar
                 def fileProgress = it.fileProgress
-
-      //          PdfCopy copy = new PdfCopy(document, new FileOutputStream("${outFileName}.pdf"))
-                progressBar.value = 0
+                fileProgress.setCurrent(0)
                 progressBar.maximum = toPage
-
+      //          PdfCopy copy = new PdfCopy(document, new FileOutputStream("${outFileName}.pdf")
                 
                 
                 (fromPage .. toPage).each{ pageNumber->
-                    fileProgress.current +=1 
-
-                    println "Attempting Page: $pageNumber. ${Thread.currentThread()}"
+                    
                         sleep(2000)
         //            copy.addPage(copy.getImportedPage(reader, pageNumber))
                 
-                    
+                    fileProgress.setCurrent(1 + fileProgress.current) 
                 }
             }
         }
     //    document.close()
+       // executeButton.setEnabled(true)
+        message("Complete: files written to ${pdfFile.parentFile}")
     
     }  
 }
 
 def error(String message) {
     JOptionPane.showMessageDialog mainFrame, message, "Error", JOptionPane.ERROR_MESSAGE
+}
+
+def message(String message) {
+    JOptionPane.showMessageDialog mainFrame, message, "Messgae", JOptionPane.INFORMATION_MESSAGE
+}
+
+def resetProgressBars() {
+    inputFileds.each{map -> 
+        map.values().findAll{it instanceof FileProgress}*.setCurrent(0)
+    }
 }
 
 def reset() {
@@ -115,7 +125,6 @@ Boolean validateInputs() {
             invalidFileds = textFieldList.findAll{ it?.text?.isAllWhitespace()}
             int fromP = fromField.text?.isNumber() ? fromField.text.toInteger() : 0
             int toP = toField.text?.isNumber() ? toField.text.toInteger() : 0 
-            println "Size is : " + invalidFileds.size()
             if(toP < fromP || toP == 0 || fromP == 0){
                 invalidFileds << toField << fromField
             }
@@ -129,9 +138,10 @@ Boolean validateInputs() {
     return valid
 }   
 
+//UI with swingbuilder
 def size = [900, 400]
 swingBuilder.edt {
-	mainFrame = frame(title: 'PDF Splitter', defaultCloseOperation: JFrame.DISPOSE_ON_CLOSE, 
+	mainFrame = frame(title: 'PDF Splitter', defaultCloseOperation: JFrame.EXIT_ON_CLOSE, 
 		size: size, minimumSize: size, maximumSize: size, resizable: false, show: true, locationRelativeTo: null) {
     
     borderLayout()
@@ -153,6 +163,7 @@ swingBuilder.edt {
             m."toPageField" = textField(columns: 5)
             label(text:  "Filename: ")
             m."fileNameField" = textField(columns: 20)
+            //Bind to fileProgress.current so progress bar is updated during execution
             m."progressBar" = progressBar(value: bind {fp.current} ) 
             m."fileProgress" = fp 
             inputFileds.add(m)        
@@ -160,9 +171,9 @@ swingBuilder.edt {
      }
 
      panel(constraints:BL.SOUTH, border: compoundBorder([emptyBorder(10), titledBorder('Execute:')])){
-        println "${Thread.currentThread()}"
         button(text: "> Reset", actionPerformed: {e -> this.reset()})
-        button(text: "> Split", actionPerformed: {e ->  doLater{this.splitFiles()}})
+        //doOutside runs outside of the edt thread
+        button(text: "> Split", actionPerformed: {e ->  doOutside{this.splitFiles()}})
      }
  }
 }
